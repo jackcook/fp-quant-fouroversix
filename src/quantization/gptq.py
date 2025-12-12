@@ -246,7 +246,8 @@ def gptq_quantization(
             granularity=args.w_granularity,
             observer=args.w_observer, 
             group_size=args.w_group_size,
-            scale_precision=args.scale_precision
+            scale_precision=args.scale_precision,
+            scale_selection_rule=args.w_scale_selection_rule
         )
     act_quantizer_kwargs = None
     if args.a_bits < 16:
@@ -257,11 +258,14 @@ def gptq_quantization(
             granularity=args.a_granularity,
             observer=args.a_observer, 
             group_size=args.a_group_size,
-            scale_precision=args.scale_precision
+            scale_precision=args.scale_precision,
+            scale_selection_rule=args.a_scale_selection_rule
         )
 
     blocks = model.model.layers
+    block_0_attention_type = blocks[0].attention_type if hasattr(blocks[0], "attention_type") else None
     blocks[0] = InputCollector(blocks[0], cpu_offload=args.cpu_offload_activations)
+    blocks[0].attention_type = block_0_attention_type
     if args.cpu_offload_modules:
         model.get_input_embeddings().to(device)
         blocks[0] = blocks[0].to(device)

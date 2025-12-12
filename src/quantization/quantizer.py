@@ -2,7 +2,7 @@ from typing import Tuple, Optional
 
 import torch
 
-from .quant_args import QuantizationFormat, QuantizationGranularity, QuantizationObserver, ScalePrecision
+from .quant_args import QuantizationFormat, QuantizationGranularity, QuantizationObserver, ScalePrecision, ScaleSelectionRule
 from .quant_ops import FP8_E4M3_MAX, FP4_E2M1_MAX, FP4_SCALE, get_quantization_fns, get_quantization_range, cast_to_eBm0
 from ..helpers import split_dim
 
@@ -28,7 +28,8 @@ class Quantizer:
         dim: int = -1,
         group_size: Optional[int] = None,
         scale_precision: str = "fp16",
-        scale_min_clip: Optional[float] = None
+        scale_min_clip: Optional[float] = None,
+        scale_selection_rule: str = "always_6"
     ):
         # Sanity checks
         if format in ["fp", "nvfp", "mxfp"]:
@@ -48,6 +49,7 @@ class Quantizer:
         self.dim = dim
         self.group_size = group_size
         self.scale_min_clip = scale_min_clip
+        self.scale_selection_rule = ScaleSelectionRule(scale_selection_rule)
 
         self.quant_fn, self.dequant_fn, self.quant_dequant_fn = get_quantization_fns(
             format=self.format,
@@ -84,7 +86,7 @@ class Quantizer:
                 zeros = zeros.unsqueeze(dim + 1)
         return x, scales, zeros
 
-    def get_quantization_params(
+    def _get_quantization_params(
         self, 
         x: torch.Tensor,
         # MSE observer quantization params
@@ -170,6 +172,47 @@ class Quantizer:
         if scales.isnan().any():
             raise ValueError(f"Scales are not finite.")
       
+        return scales, zeros
+    
+    def get_quantization_params(
+        self, 
+        x: torch.Tensor,
+        # MSE observer quantization params
+        scale_search_iters: int = 100,
+        max_scale_shrink_factor: float = 0.80,
+        error_norm: float = 2.4
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        scales, zeros = self._get_quantization_params(x, scale_search_iters, max_scale_shrink_factor, error_norm)
+        
+        if self.scale_selection_rule == ScaleSelectionRule.ALWAYS_6:
+            return scales, zeros
+        
+        self.q_max, self.q_min = 4, -4
+        scales_4, _ = self._get_quantization_params(x, scale_search_iters, max_scale_shrink_factor, error_norm)
+        self.q_max, self.q_min = FP4_E2M1_MAX, -FP4_E2M1_MAX
+
+        if self.scale_selection_rule == ScaleSelectionRule.ALWAYS_4:
+            return scales_4, zeros
+
+        x_deq_6 = self(x, scales, zeros)
+        x_deq_4 = self(x, scales_4, zeros)
+
+        diff_6 = (x - x_deq_6).reshape(-1, 16)
+        diff_4 = (x - x_deq_4).reshape(-1, 16)
+
+        if self.scale_selection_rule == ScaleSelectionRule.L1_NORM:
+            error_6 = diff_6.abs().sum(dim=-1)
+            error_4 = diff_4.abs().sum(dim=-1)
+        elif self.scale_selection_rule == ScaleSelectionRule.MSE:
+            error_6 = (diff_6 ** 2).sum(dim=-1)
+            error_4 = (diff_4 ** 2).sum(dim=-1)
+        elif self.scale_selection_rule == ScaleSelectionRule.ABS_MAX:
+            error_6 = diff_6.abs().max(dim=-1).values
+            error_4 = diff_4.abs().max(dim=-1).values
+
+        select_4 = (error_4 < error_6).reshape_as(scales)
+        scales = torch.where(select_4, scales_4, scales)
+
         return scales, zeros
         
     def quantize(self, x: torch.Tensor, scales: torch.Tensor, zeros: Optional[torch.Tensor] = None) -> torch.Tensor:

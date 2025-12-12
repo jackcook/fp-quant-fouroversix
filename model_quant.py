@@ -189,6 +189,13 @@ def parse_args():
         help="Weight observer.",
     )
     parser.add_argument(
+        "--w_scale_selection_rule",
+        type=str,
+        default="always_6",
+        choices=["always_6", "always_4", "l1_norm", "mse", "abs_max"],
+        help="Weight scale selection rule.",
+    )
+    parser.add_argument(
         "--a_bits",
         type=int,
         default=16,
@@ -213,6 +220,13 @@ def parse_args():
         default="minmax",
         choices=["minmax"],
         help="Activation observer.",
+    )
+    parser.add_argument(
+        "--a_scale_selection_rule",
+        type=str,
+        default="always_6",
+        choices=["always_6", "always_4", "l1_norm", "mse", "abs_max"],
+        help="Weight scale selection rule.",
     )
     parser.add_argument(
         "--export_quantized_model",

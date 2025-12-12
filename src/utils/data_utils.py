@@ -199,6 +199,40 @@ def get_tulu3_sft_mixture(
     return train_dataset
 
 
+def get_wikitext2_train(
+    tokenizer: AutoTokenizer, 
+    max_sequence_length: int,
+    num_calibration_samples: Optional[int] = None,
+    seed: int = 42
+):
+    train_datasetraw = load_dataset(
+        'EleutherAI/wikitext_document_level', 
+        data_files={'train': 'wikitext-2-raw-v1/wikitext-2-raw-v1-train.parquet'}, 
+        split='train'
+    )
+    all_id = []
+    trainloader = []
+    failures = 0
+    for _ in range(num_calibration_samples):
+        while True:
+            i = random.randint(0, len(train_datasetraw) - 1)
+            if i in all_id:
+                failures += 1
+                if failures >= 100:
+                    break
+                continue
+            trainenc = tokenizer(train_datasetraw[i]['page'], return_tensors='pt')
+            if trainenc.input_ids.shape[1] >= max_sequence_length:
+                break
+        if trainenc.input_ids.shape[1] < max_sequence_length:
+            continue
+        all_id.append(i)
+        i = random.randint(0, trainenc.input_ids.shape[1] - max_sequence_length)
+        tokenized_sample = trainenc.input_ids[:, i:i + max_sequence_length]
+        trainloader.append(tokenized_sample)
+    return trainloader
+
+
 def get_data(
     dataset_name: str, 
     tokenizer: AutoTokenizer, 
@@ -218,5 +252,7 @@ def get_data(
         return get_c4(tokenizer, max_sequence_length, num_calibration_samples, seed)
     if dataset_name == "tulu":
         return get_tulu3_sft_mixture(tokenizer, max_sequence_length, num_calibration_samples, seed)
+    if dataset_name == "wikitext":
+        return get_wikitext2_train(tokenizer, max_sequence_length, num_calibration_samples, seed)
     else:
         raise ValueError("Unknown dataset")
