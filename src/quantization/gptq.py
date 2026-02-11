@@ -247,7 +247,7 @@ def gptq_quantization(
             observer=args.w_observer, 
             group_size=args.w_group_size,
             scale_precision=args.scale_precision,
-            scale_selection_rule=args.w_scale_selection_rule
+            scale_selection_rule=args.weight_scale_rule
         )
     act_quantizer_kwargs = None
     if args.a_bits < 16:
@@ -259,7 +259,7 @@ def gptq_quantization(
             observer=args.a_observer, 
             group_size=args.a_group_size,
             scale_precision=args.scale_precision,
-            scale_selection_rule=args.a_scale_selection_rule
+            scale_selection_rule=args.activation_scale_rule
         )
 
     blocks = model.model.layers

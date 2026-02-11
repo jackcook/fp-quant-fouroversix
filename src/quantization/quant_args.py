@@ -44,8 +44,8 @@ class ScaleSelectionRule(str, Enum):
     """
     Enum scale selection rule options
     """
-    ALWAYS_6 = "always_6"
-    ALWAYS_4 = "always_4"
-    L1_NORM = "l1_norm"
+    STATIC_6 = "static_6"
+    STATIC_4 = "static_4"
+    MAE = "mae"
     MSE = "mse"
     ABS_MAX = "abs_max"

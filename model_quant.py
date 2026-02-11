@@ -189,10 +189,10 @@ def parse_args():
         help="Weight observer.",
     )
     parser.add_argument(
-        "--w_scale_selection_rule",
+        "--weight_scale_rule",
         type=str,
-        default="always_6",
-        choices=["always_6", "always_4", "l1_norm", "mse", "abs_max"],
+        default="static_6",
+        choices=["static_6", "static_4", "mae", "mse", "abs_max"],
         help="Weight scale selection rule.",
     )
     parser.add_argument(
@@ -222,10 +222,10 @@ def parse_args():
         help="Activation observer.",
     )
     parser.add_argument(
-        "--a_scale_selection_rule",
+        "--activation_scale_rule",
         type=str,
-        default="always_6",
-        choices=["always_6", "always_4", "l1_norm", "mse", "abs_max"],
+        default="static_6",
+        choices=["static_6", "static_4", "mae", "mse", "abs_max"],
         help="Weight scale selection rule.",
     )
     parser.add_argument(
